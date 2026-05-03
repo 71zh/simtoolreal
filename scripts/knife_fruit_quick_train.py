@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Quick smoke training for the knife + fruit (SimToolRealKnifeFruit) task.
+"""Quick training for peel-related tasks (two curriculum profiles).
+
+- **phase1_trajectory** (default): grasp the peeler and follow fixed goal poses
+  (existing keypoint / lifting / velocity-penalties / anti-drop resets). See
+  `isaacgymenvs/cfg/task/SimToolRealKnifePhase1Trajectory.yaml`.
+- **phase2_peel_surrogate**: Fruit actor + peel-bin surrogate rewards —
+  `SimToolRealKnifeFruit.yaml`.
 
 Run from the **repository root** with the project venv activated (Python 3.8 + Isaac Gym installed).
 
@@ -7,6 +13,7 @@ Example:
 
     source .venv/bin/activate
     python scripts/knife_fruit_quick_train.py
+    python scripts/knife_fruit_quick_train.py --profile phase2_peel_surrogate
     python scripts/knife_fruit_quick_train.py --max-epochs 200 --num-envs 4096
 
 **AutoDL**
@@ -39,12 +46,16 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 import tyro
 
 
 @dataclass
 class KnifeFruitQuickTrainArgs:
+    profile: Literal["phase1_trajectory", "phase2_peel_surrogate"] = "phase1_trajectory"
+    """phase1 = tool trajectory + smoothing + anti-drop only; phase2 = pseudo-peeling env."""
+
     max_epochs: int = 80
     """Number of RL learning epochs (rl_games). Raise for longer runs."""
 
@@ -76,12 +87,19 @@ def main() -> None:
 
     minibatch = _choose_minibatch(args.num_envs)
 
+    if args.profile == "phase1_trajectory":
+        hydra_task = "SimToolRealKnifePhase1Trajectory"
+        hydra_train = "SimToolRealKnifePhase1LSTMAsymmetricPPO"
+    else:
+        hydra_task = "SimToolRealKnifeFruit"
+        hydra_train = "SimToolRealKnifeFruitLSTMAsymmetricPPO"
+
     cmd: list[str] = [
         sys.executable,
         "-m",
         "isaacgymenvs.train",
-        "task=SimToolRealKnifeFruit",
-        "train=SimToolRealKnifeFruitLSTMAsymmetricPPO",
+        f"task={hydra_task}",
+        f"train={hydra_train}",
         f"num_envs={args.num_envs}",
         f"task.env.numEnvs={args.num_envs}",
         f"headless={args.headless}",

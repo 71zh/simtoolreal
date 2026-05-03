@@ -1,0 +1,26 @@
+defaults:
+  - SimToolReal
+  - _self_
+
+# Phase 1 (recommended first): grasp peeler and track a fixed WORLD-frame tool pose
+# sequence. Rewards are exactly the usual SimToolReal stack:
+#   - keypoints vs goal trajectory (implicit pose tracking on the manipulated object),
+#   - lifting / finger approach terms,
+#   - joint-velocity penalties (smooth control),
+#   - table fall + optional drop reset via resetWhenDropped.
+# No peel-surrogate bonuses; apple/fruit stays out of simulation until Phase 2.
+name: SimToolRealKnifePhase1Trajectory
+
+env:
+  objectName: "paring_knife"
+  handleHeadTypes: ["knife", "spatula"]
+
+  useFixedGoalStates: True
+  fixedGoalStates: null
+  fixedGoalStatesJsonPath: "dextoolbench/trajectories/knife/paring_knife/phase1_tool_trajectory_proxy.json"
+
+  # Keep defaults from SimToolReal for keypoint / action smoothing / resets.
+  # Optionally emphasize stability (tune after smoke tests):
+  # keypointRewScale: 250.0
+  # kukaActionsPenaltyScale: 0.04
+  # handActionsPenaltyScale: 0.004

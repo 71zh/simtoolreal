@@ -2,6 +2,9 @@ defaults:
   - SimToolReal
   - _self_
 
+# Phase 2 – pseudo-peeling surrogate (surface-bin progress, contact cues, fruit actor).
+# For Phase 1 (trajectory-first: grasp peeler + follow goal poses + smooth actions + drops),
+# use task SimToolRealKnifePhase1Trajectory instead — see isaacgymenvs/cfg/task/SimToolRealKnifePhase1Trajectory.yaml .
 name: SimToolRealKnifeFruit
 
 env:
@@ -11,6 +14,7 @@ env:
   handleHeadTypes: ["knife", "spatula"]
 
   enableKnifeFruitTask: True
+  # For Viser replay with apple: set record_data: True and record_data_num_steps (see base SimToolReal.yaml). Fruit root states are written into the .npz when this is enabled.
   knifeAlignRewScale: 40.0
   knifeContactRewScale: 20.0
   peelProgressRewScale: 300.0

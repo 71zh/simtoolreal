@@ -77,7 +77,14 @@
     - contact depth
     - task success rate (progress + damage thresholds)
 
-## 2026-05-03 - Fruit actor integration
+## 2026-05-03 - Viser replay and recording: apple / fruit actor
+
+- Extended `recorded_data/core.py` `RecordedData` with optional `fruit_root_states_array` (T, 13) and `fruit_object_name`.
+- `to_file` / `from_file` / `slice` updated; optional keys omitted when absent.
+- `isaacgymenvs/tasks/simtoolreal/env.py` `_record_data` now logs per-step fruit root state when knife-fruit mode is active and saves both fields in the NPZ.
+- `recorded_data/visualize.py` loads a red-tinted fruit URDF at `/fruit` when the NPZ contains `fruit_root_states_array`; CLI adds `fruit_object_name` override.
+- `dextoolbench/eval.py` `ViserServer` optionally adds `/fruit` from `fruitObjectName` when `enableKnifeFruitTask` is true; `EvalRunner` passes `fruit_pose` each frame and includes fruit in video frame caches when present.
+- `isaacgymenvs/cfg/task/SimToolRealKnifeFruit.yaml` comment documents enabling `record_data` for replay.
 
 ### Environment Integration
 - Updated `isaacgymenvs/tasks/simtoolreal/env.py` to make fruit a real simulation actor:
@@ -99,3 +106,21 @@
 - Updated `isaacgymenvs/tasks/simtoolreal/env.py` `post_physics_step` debug viewer branch:
   - When `enableDebugVis` is true and knife-fruit mode is active, draws the fruit actor pose (RGB axes via `_draw_transform`) and an orange wireframe sphere with radius `max(0.02, fruit_radius)` to match the peeling proxy geometry.
   - The fruit rigid-body mesh remains visible in the viewer whenever rendering is enabled; the extra draw aids alignment with the knife and goal.
+
+## 2026-05-04 - Curriculum: Phase‑1 trajectory vs Phase‑2 pseudo‑peeling
+
+### Intent
+- **Phase 1 (do first)** – operational meaning: grasp the peeler and **track a WORLD‑frame pose sequence**
+  (“走刀”). Use only the legacy SimToolReal stack already in `env.py`:
+  **keypoints vs sequential goals** (+ lifting / finger deltas) + **`_action_penalties` joint‑velocity smoothing**
+  + **`_compute_resets` fall/drop/hand‑far** guarding.
+- **Phase 2 (later)** – **pseudo peeling**: retained in `SimToolRealKnifeFruit` (bins + optional fruit actor physics),
+  or future rigid peel shards / trajectory‑only success.
+
+### Assets / configs added
+- `dextoolbench/trajectories/knife/paring_knife/phase1_tool_trajectory_proxy.json` – trimmed proxy arc (from spatula envelope);
+  replace with peeler‑specific poses (`interactive_create_task_trajectory.py` recommended).
+- `isaacgymenvs/cfg/task/SimToolRealKnifePhase1Trajectory.yaml` – Phase‑1 Hydra task: `paring_knife`, `useFixedGoalStates`, JSON goals.
+- `isaacgymenvs/cfg/train/SimToolRealKnifePhase1LSTMAsymmetricPPO.yaml` – LSTM asymmetric PPO config for Phase‑1.
+- `scripts/knife_fruit_quick_train.py` – `--profile phase1_trajectory` (default) vs `phase2_peel_surrogate`.
+- `scripts/knife_fruit_eval_latest.py` – `--profile` chooses run directory; Phase‑1 prints `test=True` rollout command instead of peel JSON eval.
