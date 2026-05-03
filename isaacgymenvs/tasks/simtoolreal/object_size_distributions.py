@@ -8,6 +8,7 @@ import numpy as np
 class ObjectSizeDistribution:
     type: Literal[
         "hammer",
+        "knife",
         "screwdriver",
         "marker",
         "spatula",
@@ -156,6 +157,35 @@ OBJECT_SIZE_DISTRIBUTIONS: List[ObjectSizeDistribution] = [
         handle_max_lengths=(0.12, 0.04),
         head_min_lengths=(0.07, 0.01, 0.01),
         head_max_lengths=(0.15, 0.015, 0.015),
+        handle_min_density=LOW_DENSITY_MIN,
+        handle_max_density=LOW_DENSITY_MAX,
+        head_min_density=HIGH_DENSITY_MIN,
+        head_max_density=HIGH_DENSITY_MAX,
+    ),
+    # Knife (kitchen utility style)
+    # Handle: (x) Lengths are [8cm, 14cm]
+    #         (y) Widths are [1.5cm, 3cm]
+    #         (z) Heights are [1.5cm, 3cm]
+    # Blade:  (x) [6cm, 12cm]
+    #         (y) [1cm, 2.5cm]
+    #         (z) [0.2cm, 0.6cm]
+    ObjectSizeDistribution(
+        type="knife",
+        handle_min_lengths=(0.08, 0.015, 0.015),  # Box
+        handle_max_lengths=(0.14, 0.03, 0.03),
+        head_min_lengths=(0.06, 0.01, 0.002),
+        head_max_lengths=(0.12, 0.025, 0.006),
+        handle_min_density=LOW_DENSITY_MIN,
+        handle_max_density=LOW_DENSITY_MAX,
+        head_min_density=HIGH_DENSITY_MIN,
+        head_max_density=HIGH_DENSITY_MAX,
+    ),
+    ObjectSizeDistribution(
+        type="knife",
+        handle_min_lengths=(0.08, 0.015),  # Cylinder
+        handle_max_lengths=(0.14, 0.03),
+        head_min_lengths=(0.06, 0.01, 0.002),
+        head_max_lengths=(0.12, 0.025, 0.006),
         handle_min_density=LOW_DENSITY_MIN,
         handle_max_density=LOW_DENSITY_MAX,
         head_min_density=HIGH_DENSITY_MIN,

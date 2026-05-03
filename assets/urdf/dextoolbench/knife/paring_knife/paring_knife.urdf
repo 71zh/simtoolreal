@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<robot name="paring_knife">
+  <link name="paring_knife">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="paring_knife.obj" scale="1.0 1.0 1.0"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="paring_knife.obj" scale="1.0 1.0 1.0"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <density value="700"/>
+    </inertial>
+  </link>
+</robot>

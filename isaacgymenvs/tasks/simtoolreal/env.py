@@ -101,6 +101,7 @@ class SimToolReal(VecTask):
         # Goal related variables
         self.goal_object_indices = []
         self.goal_assets = []
+        self.fruit_indices = []
         self.goal_sampling_type = cfg["env"]["goalSamplingType"]
         self.target_volume_region_scale = cfg["env"]["targetVolumeRegionScale"]
         self.delta_goal_distance = cfg["env"]["deltaGoalDistance"]
@@ -145,6 +146,42 @@ class SimToolReal(VecTask):
         self.hand_actions_penalty_scale = self.cfg["env"]["handActionsPenaltyScale"]
         self.object_lin_vel_penalty_scale = self.cfg["env"]["objectLinVelPenaltyScale"]
         self.object_ang_vel_penalty_scale = self.cfg["env"]["objectAngVelPenaltyScale"]
+        self.enable_knife_fruit_task = self.cfg["env"].get("enableKnifeFruitTask", False)
+        self.knife_align_rew_scale = self.cfg["env"].get("knifeAlignRewScale", 0.0)
+        self.knife_contact_rew_scale = self.cfg["env"].get("knifeContactRewScale", 0.0)
+        self.peel_progress_rew_scale = self.cfg["env"].get("peelProgressRewScale", 0.0)
+        self.fruit_damage_penalty_scale = self.cfg["env"].get(
+            "fruitDamagePenaltyScale", 0.0
+        )
+        self.knife_lost_distance = self.cfg["env"].get("knifeLostDistance", 0.25)
+        self.desired_contact_depth = self.cfg["env"].get("desiredContactDepth", 0.004)
+        self.max_damage_depth = self.cfg["env"].get("maxDamageDepth", 0.012)
+        self.contact_depth_margin = self.cfg["env"].get("contactDepthMargin", 0.003)
+        self.min_contact_depth_for_peel = self.cfg["env"].get(
+            "minContactDepthForPeel", 0.001
+        )
+        self.min_tip_speed_for_peel = self.cfg["env"].get("minTipSpeedForPeel", 0.03)
+        self.min_alignment_for_peel = self.cfg["env"].get("minAlignmentForPeel", 0.7)
+        self.fruit_object_name = self.cfg["env"].get("fruitObjectName", "apple_proxy")
+        self.peel_azimuth_bins = int(self.cfg["env"].get("peelAzimuthBins", 16))
+        self.peel_elevation_bins = int(self.cfg["env"].get("peelElevationBins", 8))
+        self.fruit_center_base = torch.tensor(
+            self.cfg["env"].get("fruitCenterBase", [0.0, 0.0, 0.62]),
+            dtype=torch.float,
+        )
+        self.fruit_center_noise = torch.tensor(
+            self.cfg["env"].get("fruitCenterNoise", [0.03, 0.03, 0.02]),
+            dtype=torch.float,
+        )
+        self.fruit_radius_range = self.cfg["env"].get("fruitRadiusRange", [0.035, 0.055])
+        self.knife_tip_offset_local = torch.tensor(
+            self.cfg["env"].get("knifeTipOffsetLocal", [0.09, 0.0, 0.0]),
+            dtype=torch.float,
+        )
+        self.knife_blade_tangent_local = torch.tensor(
+            self.cfg["env"].get("knifeBladeTangentLocal", [1.0, 0.0, 0.0]),
+            dtype=torch.float,
+        )
 
         self.initial_tolerance = self.cfg["env"]["successTolerance"]
         self.target_tolerance = self.cfg["env"]["targetSuccessTolerance"]
@@ -317,6 +354,11 @@ class SimToolReal(VecTask):
             "progress": 1,
             "successes": 1,
             "reward": 1,
+            "knife_tip_rel_fruit": 3,
+            "knife_blade_tangent_align": 1,
+            "knife_normal_contact_depth": 1,
+            "peel_progress": 1,
+            "peel_progress_delta": 1,
         }
 
         self.state_list = self.cfg["env"]["stateList"]
@@ -532,6 +574,38 @@ class SimToolReal(VecTask):
         self.z_unit_tensor = to_torch(
             [0, 0, 1], dtype=torch.float, device=self.device
         ).repeat((self.num_envs, 1))
+        self.fruit_center_base = self.fruit_center_base.to(self.device)
+        self.fruit_center_noise = self.fruit_center_noise.to(self.device)
+        self.knife_tip_offset_local = (
+            self.knife_tip_offset_local.to(self.device).reshape(1, 3)
+        )
+        self.knife_blade_tangent_local = (
+            self.knife_blade_tangent_local.to(self.device).reshape(1, 3)
+        )
+        self.num_peel_bins = self.peel_azimuth_bins * self.peel_elevation_bins
+        self.fruit_center_pos = self.fruit_center_base.unsqueeze(0).repeat(self.num_envs, 1)
+        self.fruit_radius = torch.full(
+            (self.num_envs,), float(self.fruit_radius_range[0]), device=self.device
+        )
+        self.knife_tip_pos = torch.zeros((self.num_envs, 3), dtype=torch.float, device=self.device)
+        self.prev_knife_tip_pos = self.knife_tip_pos.clone()
+        self.knife_tip_speed = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
+        self.knife_tip_rel_fruit = torch.zeros((self.num_envs, 3), dtype=torch.float, device=self.device)
+        self.knife_surface_signed_dist = torch.zeros(
+            self.num_envs, dtype=torch.float, device=self.device
+        )
+        self.knife_blade_tangent_align = torch.zeros(
+            self.num_envs, dtype=torch.float, device=self.device
+        )
+        self.knife_contact_depth = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
+        self.peel_progress = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
+        self.peel_progress_delta = torch.zeros(
+            self.num_envs, dtype=torch.float, device=self.device
+        )
+        self.peel_bins_visited = torch.zeros(
+            (self.num_envs, self.num_peel_bins), dtype=torch.bool, device=self.device
+        )
+        self.fruit_damage = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
 
         self.reset_goal_buf = self.reset_buf.clone()
         self.successes = torch.zeros(
@@ -682,8 +756,16 @@ class SimToolReal(VecTask):
             "hand_actions_penalty",
             "raw_object_lin_vel_penalty",
             "raw_object_ang_vel_penalty",
+            "raw_knife_align_rew",
+            "raw_knife_contact_rew",
+            "raw_peel_progress_rew",
+            "raw_fruit_damage_penalty",
             "object_lin_vel_penalty",
             "object_ang_vel_penalty",
+            "knife_align_rew",
+            "knife_contact_rew",
+            "peel_progress_rew",
+            "fruit_damage_penalty",
             "total_reward",
         ]
 
@@ -1289,8 +1371,25 @@ class SimToolReal(VecTask):
         goal_shapes_count = self.gym.get_asset_rigid_shape_count(
             self.goal_assets[0]
         )  # assuming all of them have the same rb count
+        self.fruit_asset = None
+        fruit_rb_count = 0
+        fruit_shapes_count = 0
+        if self.enable_knife_fruit_task:
+            if self.fruit_object_name not in NAME_TO_OBJECT:
+                raise ValueError(
+                    f"Unknown fruit object name: {self.fruit_object_name}. "
+                    f"Known names: {sorted(NAME_TO_OBJECT.keys())[:10]}..."
+                )
+            fruit_obj = NAME_TO_OBJECT[self.fruit_object_name]
+            fruit_asset_dir = os.path.dirname(str(fruit_obj.urdf_path))
+            fruit_asset_fname = os.path.basename(str(fruit_obj.urdf_path))
+            self.fruit_asset = self.gym.load_asset(
+                self.sim, fruit_asset_dir, fruit_asset_fname, object_asset_options
+            )
+            fruit_rb_count = self.gym.get_asset_rigid_body_count(self.fruit_asset)
+            fruit_shapes_count = self.gym.get_asset_rigid_shape_count(self.fruit_asset)
 
-        return goal_rb_count, goal_shapes_count
+        return goal_rb_count + fruit_rb_count, goal_shapes_count + fruit_shapes_count
 
     def _create_additional_objects(self, env_ptr, env_idx, object_asset_idx):
         self.goal_displacement = gymapi.Vec3(-0.35, -0.06, 0.12)
@@ -1330,12 +1429,207 @@ class SimToolReal(VecTask):
         GREEN = (0.0, 1.0, 0.0)
         self._set_actor_color(env_ptr, goal_handle, GREEN)
 
+        if self.enable_knife_fruit_task and self.fruit_asset is not None:
+            fruit_start_pose = gymapi.Transform()
+            fruit_start_pose.p = gymapi.Vec3(*self.fruit_center_base.tolist())
+            fruit_start_pose.r = gymapi.Quat(0, 0, 0, 1)
+            fruit_handle = self.gym.create_actor(
+                env_ptr,
+                self.fruit_asset,
+                fruit_start_pose,
+                "fruit_object",
+                env_idx + self.num_envs * 3,
+                0,
+                0,
+            )
+            fruit_idx = self.gym.get_actor_index(env_ptr, fruit_handle, gymapi.DOMAIN_SIM)
+            self.fruit_indices.append(fruit_idx)
+            self._fruit_init_state_list.append(
+                [
+                    fruit_start_pose.p.x,
+                    fruit_start_pose.p.y,
+                    fruit_start_pose.p.z,
+                    fruit_start_pose.r.x,
+                    fruit_start_pose.r.y,
+                    fruit_start_pose.r.z,
+                    fruit_start_pose.r.w,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                ]
+            )
+            for name in self.gym.get_actor_rigid_body_names(env_ptr, fruit_handle):
+                self.rigid_body_name_to_idx["fruit/" + name] = (
+                    self.gym.find_actor_rigid_body_index(
+                        env_ptr, fruit_handle, name, gymapi.DOMAIN_ENV
+                    )
+                )
+            RED = (1.0, 0.2, 0.2)
+            self._set_actor_color(env_ptr, fruit_handle, RED)
+
     def _after_envs_created(self):
         self.goal_object_indices = to_torch(
             self.goal_object_indices, dtype=torch.long, device=self.device
         )
+        if len(self.fruit_indices) > 0:
+            self.fruit_indices = to_torch(
+                self.fruit_indices, dtype=torch.long, device=self.device
+            )
+
+    def _reset_knife_fruit_states(self, env_ids: Tensor) -> None:
+        if len(env_ids) == 0:
+            return
+        if not self.enable_knife_fruit_task:
+            self.fruit_center_pos[env_ids] = self.fruit_center_base
+            self.fruit_radius[env_ids] = self.fruit_radius_range[0]
+            self.peel_bins_visited[env_ids] = False
+            self.peel_progress[env_ids] = 0.0
+            self.peel_progress_delta[env_ids] = 0.0
+            self.fruit_damage[env_ids] = 0.0
+            return
+
+        noise = torch_rand_float(
+            -1.0, 1.0, (len(env_ids), 3), device=self.device
+        ) * self.fruit_center_noise.unsqueeze(0)
+        self.fruit_center_pos[env_ids] = self.fruit_center_base.unsqueeze(0) + noise
+
+        radius_low, radius_high = self.fruit_radius_range
+        sampled_radius = torch_rand_float(
+            float(radius_low), float(radius_high), (len(env_ids), 1), device=self.device
+        ).squeeze(-1)
+        self.fruit_radius[env_ids] = sampled_radius
+        self.peel_bins_visited[env_ids] = False
+        self.peel_progress[env_ids] = 0.0
+        self.peel_progress_delta[env_ids] = 0.0
+        self.fruit_damage[env_ids] = 0.0
+        if (
+            hasattr(self, "fruit_indices")
+            and isinstance(self.fruit_indices, torch.Tensor)
+            and self.fruit_init_state is not None
+            and len(self.fruit_indices) > 0
+        ):
+            fruit_indices = self.fruit_indices[env_ids]
+            self.root_state_tensor[fruit_indices] = self.fruit_init_state[env_ids].clone()
+            self.root_state_tensor[fruit_indices, 0:3] = self.fruit_center_pos[env_ids]
+            self.root_state_tensor[fruit_indices, 7:13] = 0.0
+            self.deferred_set_actor_root_state_tensor_indexed([fruit_indices])
+
+    def _update_knife_fruit_task_buffers(self) -> None:
+        if (
+            hasattr(self, "fruit_indices")
+            and isinstance(self.fruit_indices, torch.Tensor)
+            and len(self.fruit_indices) > 0
+        ):
+            self.fruit_state = self.root_state_tensor[self.fruit_indices, 0:13]
+            self.fruit_center_pos = self.fruit_state[:, 0:3]
+
+        tip_offset = self.knife_tip_offset_local.repeat(self.num_envs, 1)
+        self.knife_tip_pos = self.object_pos + quat_rotate(self.object_rot, tip_offset)
+        tip_dt = self.sim_params.dt * self.control_freq_inv
+        tip_disp = self.knife_tip_pos - self.prev_knife_tip_pos
+        self.knife_tip_speed = torch.norm(tip_disp, dim=-1) / max(tip_dt, 1e-6)
+        self.prev_knife_tip_pos[:] = self.knife_tip_pos
+
+        rel = self.knife_tip_pos - self.fruit_center_pos
+        rel_norm = torch.norm(rel, dim=-1, keepdim=True)
+        safe_norm = torch.clamp(rel_norm, min=1e-6)
+        surface_normal = rel / safe_norm
+
+        self.knife_tip_rel_fruit = rel
+        self.knife_surface_signed_dist = rel_norm.squeeze(-1) - self.fruit_radius
+
+        blade_local = self.knife_blade_tangent_local.repeat(self.num_envs, 1)
+        blade_tangent = quat_rotate(self.object_rot, blade_local)
+        blade_tangent = blade_tangent / torch.clamp(
+            torch.norm(blade_tangent, dim=-1, keepdim=True), min=1e-6
+        )
+        normal_alignment = torch.abs(torch.sum(blade_tangent * surface_normal, dim=-1))
+        self.knife_blade_tangent_align = 1.0 - torch.clamp(normal_alignment, 0.0, 1.0)
+
+        self.knife_contact_depth = torch.clamp(-self.knife_surface_signed_dist, min=0.0)
+        depth_error = torch.abs(self.knife_contact_depth - self.desired_contact_depth)
+
+        contact_depth_ok = self.knife_contact_depth > self.min_contact_depth_for_peel
+        contact_depth_ok &= self.knife_contact_depth < (
+            self.desired_contact_depth + self.contact_depth_margin
+        )
+        align_ok = self.knife_blade_tangent_align > self.min_alignment_for_peel
+        speed_ok = self.knife_tip_speed > self.min_tip_speed_for_peel
+        valid_peel_contact = contact_depth_ok & align_ok & speed_ok
+
+        normalized_rel = rel / safe_norm
+        azim = torch.atan2(normalized_rel[:, 1], normalized_rel[:, 0])
+        elev = torch.asin(torch.clamp(normalized_rel[:, 2], min=-1.0, max=1.0))
+        azim_idx = torch.clamp(
+            ((azim + math.pi) / (2 * math.pi) * self.peel_azimuth_bins).long(),
+            0,
+            self.peel_azimuth_bins - 1,
+        )
+        elev_idx = torch.clamp(
+            (
+                (elev + math.pi / 2)
+                / math.pi
+                * self.peel_elevation_bins
+            ).long(),
+            0,
+            self.peel_elevation_bins - 1,
+        )
+        peel_bin_idx = elev_idx * self.peel_azimuth_bins + azim_idx
+        touched_env_idx = torch.where(valid_peel_contact)[0]
+        if len(touched_env_idx) > 0:
+            touched_bin_idx = peel_bin_idx[touched_env_idx]
+            self.peel_bins_visited[touched_env_idx, touched_bin_idx] = True
+
+        prev_progress = self.peel_progress.clone()
+        self.peel_progress = self.peel_bins_visited.float().mean(dim=-1)
+        self.peel_progress_delta = torch.clamp(self.peel_progress - prev_progress, min=0.0)
+
+        self.fruit_damage += torch.clamp(
+            self.knife_contact_depth - self.max_damage_depth, min=0.0
+        )
+
+        if not self.enable_knife_fruit_task:
+            self.knife_blade_tangent_align.zero_()
+            self.knife_contact_depth.zero_()
+            self.peel_progress.zero_()
+            self.peel_progress_delta.zero_()
+            self.fruit_damage.zero_()
+            self.knife_tip_rel_fruit.zero_()
+            self.knife_surface_signed_dist.zero_()
+
+    def _knife_fruit_rewards(self) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
+        if not self.enable_knife_fruit_task:
+            zeros = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
+            return zeros, zeros, zeros, zeros
+
+        align_rew = self.knife_blade_tangent_align
+        depth_error = torch.abs(self.knife_contact_depth - self.desired_contact_depth)
+        contact_rew = torch.exp(-depth_error / max(self.contact_depth_margin, 1e-6))
+        progress_rew = self.peel_progress_delta
+        damage_penalty = -torch.square(
+            torch.clamp(self.knife_contact_depth - self.max_damage_depth, min=0.0)
+        )
+        return align_rew, contact_rew, progress_rew, damage_penalty
 
     def _extra_reset_rules(self, resets):
+        if not self.enable_knife_fruit_task:
+            return resets
+        ones = torch.ones_like(self.reset_buf)
+        zeros = torch.zeros_like(self.reset_buf)
+        knife_lost = torch.where(
+            torch.norm(self.knife_tip_rel_fruit, dim=-1) > self.knife_lost_distance,
+            ones,
+            zeros,
+        )
+        over_penetration = torch.where(
+            self.knife_contact_depth > (self.max_damage_depth + self.contact_depth_margin),
+            ones,
+            zeros,
+        )
+        resets = resets | knife_lost | over_penetration
         return resets
 
     def _sample_delta_goal(
@@ -1487,7 +1781,14 @@ class SimToolReal(VecTask):
             )
 
     def _extra_object_indices(self, env_ids: Tensor) -> List[Tensor]:
-        return [self.goal_object_indices[env_ids]]
+        extra_indices = [self.goal_object_indices[env_ids]]
+        if (
+            hasattr(self, "fruit_indices")
+            and isinstance(self.fruit_indices, torch.Tensor)
+            and len(self.fruit_indices) > 0
+        ):
+            extra_indices.append(self.fruit_indices[env_ids])
+        return extra_indices
 
     def _extra_curriculum(self):
         self.success_tolerance, self.last_curriculum_update = tolerance_curriculum(
@@ -1902,6 +2203,7 @@ class SimToolReal(VecTask):
 
         object_init_state = []
         table_init_state = []
+        self._fruit_init_state_list = []
 
         self.rigid_body_name_to_idx = {}
 
@@ -2198,6 +2500,12 @@ class SimToolReal(VecTask):
         self.goal_states = self.object_init_state.clone()
         self.goal_states[:, self.up_axis_idx] -= 0.04
         self.goal_init_state = self.goal_states.clone()
+        if len(self._fruit_init_state_list) > 0:
+            self.fruit_init_state = to_torch(
+                self._fruit_init_state_list, device=self.device, dtype=torch.float
+            ).view(self.num_envs, 13)
+        else:
+            self.fruit_init_state = None
 
         self.fingertip_handles = to_torch(
             self.fingertip_handles, dtype=torch.long, device=self.device
@@ -2567,6 +2875,9 @@ class SimToolReal(VecTask):
             lifted_object
         )
         keypoint_rew, keypoint_rew_fixed_size = self._keypoint_reward(lifted_object)
+        knife_align_rew, knife_contact_rew, peel_progress_rew, fruit_damage_penalty = (
+            self._knife_fruit_rewards()
+        )
         if self.cfg["env"]["fixedSizeKeypointReward"]:
             keypoint_rew = keypoint_rew_fixed_size
 
@@ -2609,6 +2920,10 @@ class SimToolReal(VecTask):
         self.rewards_episode["raw_keypoint_rew"] += keypoint_rew
         self.rewards_episode["raw_object_lin_vel_penalty"] += object_lin_vel_penalty
         self.rewards_episode["raw_object_ang_vel_penalty"] += object_ang_vel_penalty
+        self.rewards_episode["raw_knife_align_rew"] += knife_align_rew
+        self.rewards_episode["raw_knife_contact_rew"] += knife_contact_rew
+        self.rewards_episode["raw_peel_progress_rew"] += peel_progress_rew
+        self.rewards_episode["raw_fruit_damage_penalty"] += fruit_damage_penalty
 
         fingertip_delta_rew *= self.distance_delta_rew_scale
         hand_delta_penalty *= self.distance_delta_rew_scale * 0  # currently disabled
@@ -2616,6 +2931,10 @@ class SimToolReal(VecTask):
         keypoint_rew *= self.keypoint_rew_scale
         object_lin_vel_penalty *= self.object_lin_vel_penalty_scale
         object_ang_vel_penalty *= self.object_ang_vel_penalty_scale
+        knife_align_rew *= self.knife_align_rew_scale
+        knife_contact_rew *= self.knife_contact_rew_scale
+        peel_progress_rew *= self.peel_progress_rew_scale
+        fruit_damage_penalty *= self.fruit_damage_penalty_scale
 
         kuka_actions_penalty, hand_actions_penalty = self._action_penalties()
 
@@ -2636,6 +2955,10 @@ class SimToolReal(VecTask):
             + bonus_rew
             + object_lin_vel_penalty
             + object_ang_vel_penalty
+            + knife_align_rew
+            + knife_contact_rew
+            + peel_progress_rew
+            + fruit_damage_penalty
         )
 
         self.rew_buf[:] = reward
@@ -2656,6 +2979,8 @@ class SimToolReal(VecTask):
         )
         self.true_objective = self._true_objective()
         self.extras["true_objective"] = self.true_objective
+        self.extras["peel_progress"] = self.peel_progress.mean().item()
+        self.extras["fruit_damage"] = self.fruit_damage.mean().item()
 
         # scalars for logging
         # self.extras["true_objective_mean"] = self.true_objective.mean()
@@ -2673,6 +2998,10 @@ class SimToolReal(VecTask):
             (bonus_rew, "bonus_rew"),
             (object_lin_vel_penalty, "object_lin_vel_penalty"),
             (object_ang_vel_penalty, "object_ang_vel_penalty"),
+            (knife_align_rew, "knife_align_rew"),
+            (knife_contact_rew, "knife_contact_rew"),
+            (peel_progress_rew, "peel_progress_rew"),
+            (fruit_damage_penalty, "fruit_damage_penalty"),
             (reward, "total_reward"),
         ]
 
@@ -2908,6 +3237,8 @@ class SimToolReal(VecTask):
                 self.goal_rot, self.object_pos_offset
             )
 
+        self._update_knife_fruit_task_buffers()
+
         self.palm_center_offset = (
             torch.from_numpy(self.palm_offset)
             .to(self.device)
@@ -3081,6 +3412,13 @@ class SimToolReal(VecTask):
         obs_dict["object_scales"] = (
             self.object_scales * self.object_scale_noise_multiplier
         )
+        obs_dict["knife_tip_rel_fruit"] = self.knife_tip_rel_fruit
+        obs_dict["knife_blade_tangent_align"] = self.knife_blade_tangent_align.unsqueeze(
+            -1
+        )
+        obs_dict["knife_normal_contact_depth"] = self.knife_contact_depth.unsqueeze(-1)
+        obs_dict["peel_progress"] = self.peel_progress.unsqueeze(-1)
+        obs_dict["peel_progress_delta"] = self.peel_progress_delta.unsqueeze(-1)
 
         ## CRITIC OBSERVATIONS ##
         # palm linvel, ang vel
@@ -3459,6 +3797,7 @@ class SimToolReal(VecTask):
             self.closest_fingertip_dist[env_ids] = -1
             self.furthest_hand_dist[env_ids] = -1
             self.lifted_object[env_ids] = False
+            self._reset_knife_fruit_states(env_ids)
         self.deferred_set_actor_root_state_tensor_indexed(
             [self.object_indices[env_ids]]
         )
@@ -3568,6 +3907,14 @@ class SimToolReal(VecTask):
         self.reset_target_pose(
             env_ids, reset_buf_idxs, tensor_reset=tensor_reset, is_first_goal=True
         )
+        if tensor_reset:
+            tip_offset = self.knife_tip_offset_local.repeat(len(env_ids), 1)
+            object_pos = self.root_state_tensor[self.object_indices[env_ids], 0:3]
+            object_rot = self.root_state_tensor[self.object_indices[env_ids], 3:7]
+            self.prev_knife_tip_pos[env_ids] = object_pos + quat_rotate(
+                object_rot, tip_offset
+            )
+            self.knife_tip_speed[env_ids] = 0.0
 
         robot_indices = self.robot_indices[env_ids].to(torch.int32)
 
@@ -4744,6 +5091,44 @@ class SimToolReal(VecTask):
                 )
                 self._draw_transform(transform=object_transform, env_idx=i)
                 self._draw_transform(transform=goal_transform, env_idx=i)
+
+            if (
+                self.enable_knife_fruit_task
+                and hasattr(self, "fruit_indices")
+                and isinstance(self.fruit_indices, torch.Tensor)
+                and len(self.fruit_indices) > 0
+                and hasattr(self, "fruit_state")
+            ):
+                ORANGE = (1.0, 0.45, 0.1)
+                for i in range(self.num_envs):
+                    fruit_transform = gymapi.Transform(
+                        p=gymapi.Vec3(*self.fruit_state[i, 0:3].cpu().numpy()),
+                        r=gymapi.Quat(*self.fruit_state[i, 3:7].cpu().numpy()),
+                    )
+                    self._draw_transform(
+                        transform=fruit_transform,
+                        env_idx=i,
+                        line_length=0.12,
+                    )
+                    fruit_radius_draw = float(
+                        max(0.02, self.fruit_radius[i].item())
+                    )
+                    sphere_pose_fruit = gymapi.Transform()
+                    sphere_pose_fruit.r = gymapi.Quat(0, 0, 0, 1)
+                    sphere_geom_fruit = gymutil.WireframeSphereGeometry(
+                        fruit_radius_draw,
+                        10,
+                        10,
+                        sphere_pose_fruit,
+                        color=ORANGE,
+                    )
+                    gymutil.draw_lines(
+                        sphere_geom_fruit,
+                        self.gym,
+                        self.viewer,
+                        self.envs[i],
+                        fruit_transform,
+                    )
 
     def _init_obs_action_queue(self):
         obs_queue_length = self.cfg["env"]["obsDelayMax"]

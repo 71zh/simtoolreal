@@ -155,6 +155,30 @@ SPATULA_NAME_TO_OBJECT = {
 }
 NAME_TO_OBJECT.update(SPATULA_NAME_TO_OBJECT)
 
+KNIFE_NAME_TO_OBJECT = {
+    "paring_knife": Object(
+        urdf_path=(
+            get_repo_root_dir()
+            / "assets/urdf/dextoolbench/knife/paring_knife/paring_knife.urdf"
+        ),
+        scale=rescale_by_factor((0.16, 0.012, 0.005), factor=25),
+        need_vhacd=True,
+    ),
+}
+NAME_TO_OBJECT.update(KNIFE_NAME_TO_OBJECT)
+
+FRUIT_NAME_TO_OBJECT = {
+    "apple_proxy": Object(
+        urdf_path=(
+            get_repo_root_dir()
+            / "assets/urdf/dextoolbench/fruit/apple_proxy/apple_proxy.urdf"
+        ),
+        scale=rescale_by_factor((0.08, 0.08, 0.08), factor=25),
+        need_vhacd=False,
+    ),
+}
+NAME_TO_OBJECT.update(FRUIT_NAME_TO_OBJECT)
+
 MARKER_NAME_TO_OBJECT = {
     "sharpie_marker": Object(
         urdf_path=(

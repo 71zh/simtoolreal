@@ -1,0 +1,12 @@
+defaults:
+  - SimToolRealLSTMAsymmetricPPO
+  - _self_
+
+params:
+  config:
+    name: ${resolve_default:SimToolRealKnifeFruitLSTMAsymmetricPPO,${....experiment}}
+    entropy_coef: 0.005
+    minibatch_size: 65536
+
+    central_value_config:
+      minibatch_size: 65536

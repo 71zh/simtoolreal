@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<robot name="apple_proxy">
+  <link name="apple_proxy">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="apple_proxy.obj" scale="1.0 1.0 1.0"/>
+      </geometry>
+      <material name="apple_red">
+        <color rgba="0.82 0.12 0.12 1.0"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="apple_proxy.obj" scale="1.0 1.0 1.0"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <density value="950"/>
+    </inertial>
+  </link>
+</robot>

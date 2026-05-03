@@ -1,0 +1,50 @@
+defaults:
+  - SimToolReal
+  - _self_
+
+name: SimToolRealKnifeFruit
+
+env:
+  # Use an existing thin tool mesh as a knife proxy.
+  objectName: "paring_knife"
+  fruitObjectName: "apple_proxy"
+  handleHeadTypes: ["knife", "spatula"]
+
+  enableKnifeFruitTask: True
+  knifeAlignRewScale: 40.0
+  knifeContactRewScale: 20.0
+  peelProgressRewScale: 300.0
+  fruitDamagePenaltyScale: 400.0
+
+  knifeLostDistance: 0.20
+  desiredContactDepth: 0.004
+  maxDamageDepth: 0.012
+  contactDepthMargin: 0.003
+  minContactDepthForPeel: 0.001
+  minTipSpeedForPeel: 0.03
+  minAlignmentForPeel: 0.7
+
+  peelAzimuthBins: 16
+  peelElevationBins: 8
+
+  fruitCenterBase: [0.0, 0.0, 0.62]
+  fruitCenterNoise: [0.03, 0.03, 0.02]
+  fruitRadiusRange: [0.035, 0.055]
+
+  # Local offsets are defined in object frame of the manipulated tool.
+  knifeTipOffsetLocal: [0.09, 0.0, 0.0]
+  knifeBladeTangentLocal: [1.0, 0.0, 0.0]
+
+  stateList: [
+    "joint_pos", "joint_vel", "prev_action_targets", "palm_pos", "palm_rot", "palm_vel",
+    "object_rot", "object_vel", "fingertip_pos_rel_palm", "keypoints_rel_palm", "keypoints_rel_goal",
+    "object_scales", "knife_tip_rel_fruit", "knife_blade_tangent_align", "knife_normal_contact_depth",
+    "peel_progress", "peel_progress_delta", "closest_keypoint_max_dist", "closest_fingertip_dist",
+    "lifted_object", "progress", "successes", "reward"
+  ]
+  obsList: [
+    "joint_pos", "joint_vel", "prev_action_targets", "palm_pos", "palm_rot", "object_rot",
+    "fingertip_pos_rel_palm", "keypoints_rel_palm", "keypoints_rel_goal", "object_scales",
+    "knife_tip_rel_fruit", "knife_blade_tangent_align", "knife_normal_contact_depth",
+    "peel_progress", "peel_progress_delta"
+  ]
