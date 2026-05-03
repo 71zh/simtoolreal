@@ -16,6 +16,10 @@ Example:
     python scripts/knife_fruit_quick_train.py --profile phase2_peel_surrogate
     python scripts/knife_fruit_quick_train.py --max-epochs 200 --num-envs 4096
 
+Minimal train (cheap sanity check before ``play_trained_peeler.py`` — policy will be weak)::
+
+    python scripts/knife_fruit_quick_train.py --max-epochs 10 --num-envs 512 --save-frequency 1
+
 **AutoDL**
 
 1. ``cd /root/autodl-tmp/simtoolreal`` (or your clone path), activate venv, then
@@ -32,6 +36,15 @@ Example:
        python scripts/knife_fruit_eval_latest.py
 
    Outputs JSON under ``knife_fruit_runs/eval_latest.json``.
+
+4b. **Watch the robot in Isaac Gym after training**
+
+   After ``runs/.../nn/last.pth`` exists::
+
+       python scripts/play_trained_peeler.py --profile phase1_trajectory --headless false --num-envs 1
+
+   On AutoDL without a monitor, keep ``--headless true`` and enable ``--capture-video True`` so short clips save next to the checkpoint path (see Isaac Gym RecordVideo docs in ``isaacgymenvs/train.py``).
+
 5. Isaac Gym preview is **headless** on clouds; live 3D needs X11 forwarding or a local replay pipeline (NPZ + ``recorded_data/visualize.py``) if you enable recording in the task YAML.
 
 NOTE: Observation size differs from the original SimToolReal-only policy — do **not**

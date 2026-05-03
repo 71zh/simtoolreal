@@ -28,7 +28,10 @@
 
 from .simtoolreal.env import SimToolReal
 
-# Mappings from strings to environments
+# Mappings from strings to environments. All SimToolReal Hydra configs use the same
+# Python class regardless of YAML `name` (Knife-* tasks only change cfg env fields).
 isaacgym_task_map = {
     "SimToolReal": SimToolReal,
+    "SimToolRealKnifeFruit": SimToolReal,
+    "SimToolRealKnifePhase1Trajectory": SimToolReal,
 }
