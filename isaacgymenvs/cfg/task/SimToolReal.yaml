@@ -1,329 +1,331 @@
 defaults:
   - _self_
 
-name: SimToolReal
+name: SimToolReal # 任务名称
 
-physics_engine: ${..physics_engine}
+physics_engine: ${..physics_engine} # 物理引擎，通常由上层配置传入（如 physx）
 
 env:
-  # if given, will override the device setting in gym.
-  numEnvs: ${resolve_default:8192,${...num_envs}}
+  # 如果给定，将覆盖 gym 中的设备设置。
+  numEnvs: ${resolve_default:8192,${...num_envs}} # 并行环境的数量，默认是8192
 
-  envSpacing: 1.2
-  episodeLength: 600
-  # enableCameraSensors: False  # Setting to True will significantly slow down the environment (about 50% FPS)
-  enableCameraSensors: True  # Updated vec_task.py code to allow this to be True and still be fast, as long as enable_viewer_sync=False
-                             # Thus, we can leave this on by default without sacrificing speed, just need to make sure that enable_viewer_sync=False
-                             # And if we need to capture images, then we can set enable_viewer_sync=True
-  enableDebugVis: False
-  evalStats: False  # extra evaluation-time statistics
+  envSpacing: 1.2 # 每个环境之间的间距（米），用于在3D空间中排列多个环境
+  episodeLength: 600 # 每个回合（episode）的最大步数。达到此步数后环境会重置
+  # enableCameraSensors: False  # 设置为True会显著降低环境运行速度（FPS大约降低50%）
+  enableCameraSensors: True  # 更新了 vec_task.py 代码，允许此项为True且保持快速，只要 enable_viewer_sync=False 即可
+                             # 因此，我们可以默认开启此项而不牺牲速度，只需确保 enable_viewer_sync=False
+                             # 如果我们需要捕获图像，那么我们可以设置 enable_viewer_sync=True
+  enableDebugVis: False # 是否启用调试可视化（如绘制坐标轴、受力线等）
+  evalStats: False  # 是否在评估时收集额外的统计信息
 
-  clampAbsObservations: 10.0
+  clampAbsObservations: 10.0 # 将观测值的绝对值截断到最大 10.0，防止数值溢出
 
-  stiffnessScale: 1.0
-  forceLimitScale: 1.0
-  useRelativeControl: False
-  dofSpeedScale: 1.5  # often set to 1.0
-  handMovingAverage: 0.1  # often set to 0.1 or 1.0
-  armMovingAverage: 0.1  # often set to 0.1 or 1.0
-  dofSpeedScaleFinal: ${eval:"None"}  # often set to 1.0
-  armMovingAverageFinal: ${eval:"None"}  # often set to 0.1
-  handMovingAverageFinal: ${eval:"None"}  # often set to 0.1
+  stiffnessScale: 1.0 # 关节刚度的缩放因子
+  forceLimitScale: 1.0 # 关节力矩限制的缩放因子
+  useRelativeControl: False # 是否使用相对控制模式（即动作是相对于当前状态的增量）
+  dofSpeedScale: 1.5  # 自由度（DOF）速度缩放因子，通常设置为1.0
+  handMovingAverage: 0.1  # 机械手控制的移动平均系数，用于平滑控制信号，通常设为0.1或1.0
+  armMovingAverage: 0.1  # 机械臂控制的移动平均系数，通常设为0.1或1.0
+  dofSpeedScaleFinal: ${eval:"None"}  # 最终阶段的自由度速度缩放因子（用于课程学习）
+  armMovingAverageFinal: ${eval:"None"}  # 最终阶段机械臂控制的移动平均系数
+  handMovingAverageFinal: ${eval:"None"}  # 最终阶段机械手控制的移动平均系数
 
-  controlFrequencyInv: 1 # 60 Hz
+  controlFrequencyInv: 1 # 控制频率的倒数，1表示控制频率与仿真频率相同（例如60Hz）
 
-  resetPositionNoiseX: 0.1
-  resetPositionNoiseY: 0.1
-  resetPositionNoiseZ: 0.02
-  randomizeObjectRotation: True
-  resetDofPosRandomIntervalFingers: 0.1
-  resetDofPosRandomIntervalArm: 0.1
-  resetDofVelRandomInterval: 0.5
+  resetPositionNoiseX: 0.1 # 重置时物体在X轴上的位置噪声（随机范围）
+  resetPositionNoiseY: 0.1 # 重置时物体在Y轴上的位置噪声
+  resetPositionNoiseZ: 0.02 # 重置时物体在Z轴上的位置噪声
+  randomizeObjectRotation: True # 重置时是否随机化物体的旋转角度
+  resetDofPosRandomIntervalFingers: 0.1 # 重置时手指自由度位置的随机化区间
+  resetDofPosRandomIntervalArm: 0.1 # 重置时机械臂自由度位置的随机化区间
+  resetDofVelRandomInterval: 0.5 # 重置时关节速度的随机化区间
 
-  # Table reset settings
-  tableResetZ: 0.38
-  tableResetZRange: 0.01
-  tableObjectZOffset: 0.25
+  # 桌面重置设置
+  tableResetZ: 0.38 # 桌面重置的基础Z轴高度
+  tableResetZRange: 0.01 # 桌面重置Z轴高度的随机范围
+  tableObjectZOffset: 0.25 # 物体相对于桌面的Z轴偏移量
 
-  # Random forces applied to the object
-  forceScale: 20.0
-  forceProbRange: [0.001, 0.1]
-  forceDecay: 0.0
-  forceDecayInterval: 0.08
-  forceOnlyWhenLifted: True
-  torqueScale: 2.0
-  torqueProbRange: [0.001, 0.1]
-  torqueDecay: 0.0
-  torqueDecayInterval: 0.08
-  torqueOnlyWhenLifted: True
+  # 施加在物体上的随机力（用于增加环境难度和鲁棒性）
+  forceScale: 20.0 # 随机力的大小缩放
+  forceProbRange: [0.001, 0.1] # 施加随机力的概率范围
+  forceDecay: 0.0 # 力的衰减系数
+  forceDecayInterval: 0.08 # 力的衰减时间间隔
+  forceOnlyWhenLifted: True # 是否仅在物体被举起时才施加随机力
+  torqueScale: 2.0 # 随机扭矩的大小缩放
+  torqueProbRange: [0.001, 0.1] # 施加随机扭矩的概率范围
+  torqueDecay: 0.0 # 扭矩的衰减系数
+  torqueDecayInterval: 0.08 # 扭矩的衰减时间间隔
+  torqueOnlyWhenLifted: True # 是否仅在物体被举起时才施加随机扭矩
 
-  # Random velocity impulses applied to the object
-  linVelImpulseProbRange: [0.001, 0.1]
-  linVelImpulseScale: 0.0
-  linVelImpulseOnlyWhenLifted: True
-  angVelImpulseProbRange: [0.001, 0.1]
-  angVelImpulseScale: 0.0
-  angVelImpulseOnlyWhenLifted: True
+  # 施加在物体上的随机速度冲量
+  linVelImpulseProbRange: [0.001, 0.1] # 施加线性速度冲量的概率范围
+  linVelImpulseScale: 0.0 # 线性速度冲量的大小
+  linVelImpulseOnlyWhenLifted: True # 是否仅在物体被举起时才施加线性速度冲量
+  angVelImpulseProbRange: [0.001, 0.1] # 施加角速度冲量的概率范围
+  angVelImpulseScale: 0.0 # 角速度冲量的大小
+  angVelImpulseOnlyWhenLifted: True # 是否仅在物体被举起时才施加角速度冲量
 
-  liftingRewScale: 20.0
-  liftingBonus: 300.0
-  liftingBonusThreshold: 0.15  # when the object is lifted this distance (in meters) above the table, the agent gets the lifting bonus
-  keypointRewScale: 200.0
-  distanceDeltaRewScale: 50.0
-  reachGoalBonus: 1000.0
-  kukaActionsPenaltyScale: 0.03
-  handActionsPenaltyScale: 0.003
-  fallDistance: 0.24
-  fallPenalty: 0.0
-  objectLinVelPenaltyScale: 0.0  # Typically want angvel scale to be 100x smaller than linvel scale
-  objectAngVelPenaltyScale: 0.0  # Because 0.05-0.2m/s ~~ 0.5-2.0rad/s, 10x factor, which is squared
+  # 奖励函数相关参数
+  liftingRewScale: 20.0 # 举起物体的奖励缩放因子
+  liftingBonus: 300.0 # 成功举起物体的一次性额外奖励
+  liftingBonusThreshold: 0.15  # 当物体被举起超过桌面这个距离（米）时，智能体获得举起额外奖励
+  keypointRewScale: 200.0 # 关键点匹配的奖励缩放因子（通常用于姿态对齐）
+  distanceDeltaRewScale: 50.0 # 距离缩小的奖励缩放因子（靠近目标的奖励）
+  reachGoalBonus: 1000.0 # 达到目标的额外奖励
+  kukaActionsPenaltyScale: 0.03 # 机械臂动作的惩罚缩放因子（鼓励动作平滑/节能）
+  handActionsPenaltyScale: 0.003 # 机械手动作的惩罚缩放因子
+  fallDistance: 0.24 # 物体掉落的判定距离
+  fallPenalty: 0.0 # 物体掉落的惩罚值
+  objectLinVelPenaltyScale: 0.0  # 物体线速度惩罚缩放因子。通常希望角速度缩放比线速度缩放小100倍
+  objectAngVelPenaltyScale: 0.0  # 因为 0.05-0.2m/s 约等于 0.5-2.0rad/s，有10倍差异，平方后就是100倍
 
-  privilegedActions: False
-  privilegedActionsTorque: 0.02
+  privilegedActions: False # 是否使用特权动作（通常用于教师策略或调试）
+  privilegedActionsTorque: 0.02 # 特权动作的扭矩大小
 
-  keypointScale: 1.5
-  objectBaseSize: 0.04
+  keypointScale: 1.5 # 关键点的缩放比例
+  objectBaseSize: 0.04 # 物体的基础尺寸
 
-  observationType: "full_state"
-  successTolerance: 0.075
-  targetSuccessTolerance: 0.01
-  evalSuccessTolerance: null  # If None, will use the default success tolerance. Otherwise, will use this value for evaluation.
-  toleranceCurriculumIncrement: 0.9  # multiplicative
-  toleranceCurriculumInterval: 3000  # in env steps across all agents, with 8192 this is 3000 * 8192 = 24.6M env steps
-  maxConsecutiveSuccesses: 50
-  successSteps: 10  # how many steps we should be within the tolerance before we declare a success
-  forceConsecutiveNearGoalSteps: False  # If True, require near goal consecutively for successSteps
+  observationType: "full_state" # 观测类型，"full_state"表示获取完整的状态信息
+  successTolerance: 0.075 # 判定为成功的误差容忍度（距离）
+  targetSuccessTolerance: 0.01 # 目标的成功容忍度（用于课程学习的最终目标）
+  evalSuccessTolerance: null  # 评估时的成功容忍度。如果为None，将使用默认的successTolerance。否则在评估时使用此值。
+  toleranceCurriculumIncrement: 0.9  # 容忍度课程学习的增量（乘法，即每次缩小为原来的0.9倍）
+  toleranceCurriculumInterval: 3000  # 课程学习更新的间隔（以所有智能体的环境步数计，8192个环境时为 3000 * 8192 = 24.6M 步）
+  maxConsecutiveSuccesses: 50 # 最大连续成功次数（可能用于提前结束或课程学习指标）
+  successSteps: 10  # 在容忍度范围内保持多少步才算真正成功
+  forceConsecutiveNearGoalSteps: False  # 如果为True，则要求连续 successSteps 步都在目标附近才算成功
 
-  saveStates: False
-  saveStatesFile: "rootTensorsDofStates.bin"
+  saveStates: False # 是否保存环境状态
+  saveStatesFile: "rootTensorsDofStates.bin" # 保存状态的文件名
 
-  loadInitialStates: False
-  loadStatesFile: "rootTensorsDofStates.bin"
+  loadInitialStates: False # 是否加载初始状态
+  loadStatesFile: "rootTensorsDofStates.bin" # 加载状态的文件名
 
-  goodResetBoundary: 0
+  goodResetBoundary: 0 # 良好重置的边界条件
 
-  objectName: "handle_head_primitives"
-  useFixedGoalStates: False
-  useFixedInitObjectPose: False
-  fixedGoalStates: null
-  fixedGoalStatesJsonPath: null
+  objectName: "handle_head_primitives" # 操作的物体名称
+  useFixedGoalStates: False # 是否使用固定的目标状态
+  useFixedInitObjectPose: False # 是否使用固定的初始物体姿态
+  fixedGoalStates: null # 固定的目标状态值
+  fixedGoalStatesJsonPath: null # 固定目标状态的JSON文件路径
 
-  use_hack_object_pos_offset: False
-  hack_object_pos_offset: 0.05
+  use_hack_object_pos_offset: False # 是否使用hack方式偏移物体位置
+  hack_object_pos_offset: 0.05 # 物体位置的偏移量
 
-  record_data: False
-  record_data_num_steps: 1000
+  record_data: False # 是否记录数据（用于离线强化学习或模仿学习）
+  record_data_num_steps: 1000 # 记录数据的步数
 
-  capture_video: True  # This will not work unless headless=False or enableCameraSensors=True, both make it slower
+  capture_video: True  # 是否录制视频。除非headless=False或enableCameraSensors=True，否则此项不起作用，两者都会让仿真变慢
 
-  # Assuming 60Hz, this takes a 10s video recording every 100s of simulation time
-  # When training many envs in parallel, it runs roughly 4-10Hz real-time, so this is 6-15x slower than real-time
-  # Thus, it records a video every 600-1500s (10-25 minutes) of real time
-  capture_video_freq: 6_000
-  capture_video_len: 600
+  # 假设为60Hz，这表示每100秒的仿真时间录制一段10秒的视频
+  # 当并行训练许多环境时，运行速度大约是实时的4-10Hz，所以这比实时慢6-15倍
+  # 因此，它在真实时间中每600-1500秒（10-25分钟）录制一次视频
+  capture_video_freq: 6_000 # 录制视频的频率（步数）
+  capture_video_len: 600 # 录制视频的长度（步数）
 
-  turn_off_extra_obs: False
-  turn_off_extra_obs_slowly: False
+  # 观测值屏蔽设置（用于训练鲁棒性或特定的策略）
+  turn_off_extra_obs: False # 是否关闭额外的观测值
+  turn_off_extra_obs_slowly: False # 是否缓慢地关闭额外的观测值（课程学习）
 
-  turn_off_palm_vel_obs: False
-  turn_off_palm_vel_obs_slowly: False
+  turn_off_palm_vel_obs: False # 是否关闭手掌速度观测
+  turn_off_palm_vel_obs_slowly: False # 是否缓慢关闭手掌速度观测
 
-  turn_off_object_vel_obs: False
-  turn_off_object_vel_obs_slowly: False
+  turn_off_object_vel_obs: False # 是否关闭物体速度观测
+  turn_off_object_vel_obs_slowly: False # 是否缓慢关闭物体速度观测
 
-  # related to Tyler Curriculum
-  use_obs_dropout: False
-  init_tyler_curriculum_scale: 0.0
-  VISUALIZE_PD_TARGET_AS_BLUE_ROBOT: False
-  withTableForceSensor: False
-  curriculumSuccessRatio: 0.6
-  resetWhenDropped: False
-  timeToUpdateTylerCurriculum: 5
-  updateStepSizeTylerCurriculum: 0.01
+  # 与 Tyler 课程学习相关的设置
+  use_obs_dropout: False # 是否使用观测值随机丢弃（Dropout）
+  init_tyler_curriculum_scale: 0.0 # Tyler课程学习的初始缩放比例
+  VISUALIZE_PD_TARGET_AS_BLUE_ROBOT: False # 是否将PD控制目标可视化为蓝色机器人
+  withTableForceSensor: False # 是否使用桌面力传感器
+  curriculumSuccessRatio: 0.6 # 触发课程学习难度提升的成功率阈值
+  resetWhenDropped: False # 当物体掉落时是否重置环境
+  timeToUpdateTylerCurriculum: 5 # 更新Tyler课程学习的时间间隔
+  updateStepSizeTylerCurriculum: 0.01 # Tyler课程学习的更新步长
 
-  # related to Asymmetric Observation
-  stateList: ["joint_pos", "joint_vel", "prev_action_targets", "palm_pos", "palm_rot", "palm_vel", "object_rot", "object_vel", "fingertip_pos_rel_palm", "keypoints_rel_palm", "keypoints_rel_goal", "object_scales", "closest_keypoint_max_dist", "closest_fingertip_dist", "lifted_object", "progress", "successes", "reward"]
-  obsList: ["joint_pos", "joint_vel", "prev_action_targets", "palm_pos", "palm_rot", "object_rot", "fingertip_pos_rel_palm", "keypoints_rel_palm", "keypoints_rel_goal", "object_scales"]
-  fixedSizeKeypointReward: True
-  fixedSize: [0.141, 0.03025, 0.0271]
+  # 与非对称观测（Asymmetric Observation）相关的设置，常用于Teacher-Student架构
+  stateList: ["joint_pos", "joint_vel", "prev_action_targets", "palm_pos", "palm_rot", "palm_vel", "object_rot", "object_vel", "fingertip_pos_rel_palm", "keypoints_rel_palm", "keypoints_rel_goal", "object_scales", "closest_keypoint_max_dist", "closest_fingertip_dist", "lifted_object", "progress", "successes", "reward"] # 完整状态列表（通常给Critic或Teacher）
+  obsList: ["joint_pos", "joint_vel", "prev_action_targets", "palm_pos", "palm_rot", "object_rot", "fingertip_pos_rel_palm", "keypoints_rel_palm", "keypoints_rel_goal", "object_scales"] # 实际观测列表（通常给Actor或Student）
+  fixedSizeKeypointReward: True # 是否使用固定尺寸的关键点奖励
+  fixedSize: [0.141, 0.03025, 0.0271] # 固定的尺寸大小
 
-  startArmHigher: False  # Set to False typically for training, but for evaluation, we typically start the arm higher
+  startArmHigher: False  # 是否让机械臂在较高的位置开始。训练时通常设为False，但评估时通常设为True
 
-  # some pose_reaching_env specific settings
-  use_green_robot: True
-  sanity_check_controls: False
-  add_prev_targets_to_obs: False
-  jointVelocityPenaltyScale: 0.0
-  jointAccelerationPenaltyScale: 0.0
+  # 一些特定于 pose_reaching_env 的设置
+  use_green_robot: True # 是否使用绿色机器人模型
+  sanity_check_controls: False # 是否对控制信号进行合理性检查
+  add_prev_targets_to_obs: False # 是否将上一步的目标动作加入观测中
+  jointVelocityPenaltyScale: 0.0 # 关节速度惩罚缩放因子
+  jointAccelerationPenaltyScale: 0.0 # 关节加速度惩罚缩放因子
 
-  # goal sampling settings
-  goalSamplingType: "delta" # "absolute" or "delta" or "coin_flip"
-  targetVolumeRegionScale: 1.0 # scale the target volume region by this factor
-  deltaGoalDistance: 0.1 # distance to the goal in meters
-  deltaRotationDegrees: 90.0 # rotation of the goal in degrees
-  targetVolumeMins: [-0.35, -0.2, 0.6]  # Either null/None or a 3-element list of [x_min, y_min, z_min]
-  targetVolumeMaxs: [0.35, 0.2, 0.95]  # Either null/None or a 3-element list of [x_max, y_max, z_max]
+  # 目标采样设置
+  goalSamplingType: "delta" # 目标采样类型："absolute"（绝对位置）、"delta"（相对偏移）或 "coin_flip"（抛硬币随机）
+  targetVolumeRegionScale: 1.0 # 目标体积区域的缩放因子
+  deltaGoalDistance: 0.1 # 距离目标的相对距离（米）
+  deltaRotationDegrees: 90.0 # 目标的相对旋转角度（度）
+  targetVolumeMins: [-0.35, -0.2, 0.6]  # 目标区域的最小边界 [x_min, y_min, z_min]，可为 null/None
+  targetVolumeMaxs: [0.35, 0.2, 0.95]  # 目标区域的最大边界 [x_max, y_max, z_max]，可为 null/None
 
-  # Delays and noise
-  useObsDelay: True
-  obsDelayMax: 3
+  # 延迟和噪声设置（用于Sim2Real，缩小仿真与现实的差距）
+  useObsDelay: True # 是否使用观测延迟
+  obsDelayMax: 3 # 最大观测延迟步数
 
-  useActionDelay: True
-  actionDelayMax: 3
+  useActionDelay: True # 是否使用动作延迟
+  actionDelayMax: 3 # 最大动作延迟步数
 
-  useObjectStateDelayNoise: True
-  objectStateDelayMax: 10
-  objectStateXyzNoiseStd: 0.01
-  objectStateRotationNoiseDegrees: 5.0
-  objectScaleNoiseMultiplierRange: [1.0, 1.0]
+  useObjectStateDelayNoise: True # 是否在物体状态中加入延迟和噪声
+  objectStateDelayMax: 10 # 物体状态的最大延迟步数
+  objectStateXyzNoiseStd: 0.01 # 物体位置(XYZ)的噪声标准差
+  objectStateRotationNoiseDegrees: 5.0 # 物体旋转的噪声标准差（度）
+  objectScaleNoiseMultiplierRange: [1.0, 1.0] # 物体尺寸噪声的乘数范围
 
-  jointVelocityObsNoiseStd: 0.1
+  jointVelocityObsNoiseStd: 0.1 # 关节速度观测的噪声标准差
 
-  forceNoReset: False  # If True, will not reset the environment, useful for sim2sim testing
-  objectStartPose: ${eval:"None"}  # If None, will use the default object start pose. Otherwise, a 7-element list of [x, y, z, qx, qy, qz, qw]
-  goalObjectPose: ${eval:"None"}  # If None, does nothing. Otherwise, forces the goal object pose to be this value. Must be a 7-element list of [x, y, z, qx, qy, qz, qw]
+  forceNoReset: False  # 如果为True，将不会重置环境，这对于 sim2sim（仿真到仿真）测试很有用
+  objectStartPose: ${eval:"None"}  # 如果为None，将使用默认的物体初始姿态。否则需提供一个7元素列表 [x, y, z, qx, qy, qz, qw]
+  goalObjectPose: ${eval:"None"}  # 如果为None，则不执行任何操作。否则强制目标物体姿态为此值。必须是7元素列表 [x, y, z, qx, qy, qz, qw]
 
-  handleHeadTypes: ["hammer", "screwdriver", "marker", "spatula", "eraser", "brush"]
+  handleHeadTypes: ["hammer", "screwdriver", "marker", "spatula", "eraser", "brush"] # 训练中使用的手柄/头部工具类型
 
-  # asset Friction settings
-  modifyAssetFrictions: True
-  robotFriction: 0.5
-  fingerTipFriction: 1.5
-  objectFriction: 0.5
-  tableFriction: 0.5
+  # 资产摩擦力设置
+  modifyAssetFrictions: True # 是否修改资产的摩擦力
+  robotFriction: 0.5 # 机器人的摩擦系数
+  fingerTipFriction: 1.5 # 指尖的摩擦系数（通常较大以增加抓取稳定性）
+  objectFriction: 0.5 # 物体的摩擦系数
+  tableFriction: 0.5 # 桌面的摩擦系数
 
   asset:
-    robot: "urdf/kuka_sharpa_description/iiwa14_left_sharpa_adjusted_restricted.urdf"
+    robot: "urdf/kuka_sharpa_description/iiwa14_left_sharpa_adjusted_restricted.urdf" # 机器人模型的URDF路径
 
-    table: "urdf/table_narrow.urdf"
+    table: "urdf/table_narrow.urdf" # 桌面模型的URDF路径
 
 task:
-  randomize: False
-  randomization_params:
-    frequency: 720 # Define how many simulation steps between generating new randomizations
+  randomize: False # 是否开启域随机化（Domain Randomization）
+  randomization_params: # 域随机化参数配置
+    frequency: 720 # 定义每隔多少个仿真步生成新的随机化参数
 
-    observations:
-        range: [0, .01]
-        range_correlated: [0, .01]
-        operation: "additive"
-        distribution: "gaussian"
-        schedule: "constant"  # turn on noise after `schedule_steps` num steps
-        schedule_steps: 5000
-    actions:
-        range: [0., .01]
-        range_correlated: [0., .01]
-        operation: "additive"
-        distribution: "gaussian"
-        schedule: "linear"  # linearly interpolate between 0 randomization and full range
-        schedule_steps: 5000
-    sim_params:
-      gravity:
-        range: [0, 0.3]
-        operation: "additive"
-        distribution: "gaussian"
+    observations: # 观测值随机化
+        range: [0, .01] # 随机噪声范围
+        range_correlated: [0, .01] # 相关噪声范围
+        operation: "additive" # 噪声添加方式（"additive"表示加法）
+        distribution: "gaussian" # 噪声分布类型（"gaussian"表示高斯分布）
+        schedule: "constant"  # 噪声调度策略（"constant"表示恒定）
+        schedule_steps: 5000 # 经过多少步后开启噪声
+    actions: # 动作随机化
+        range: [0., .01] # 随机噪声范围
+        range_correlated: [0., .01] # 相关噪声范围
+        operation: "additive" # 噪声添加方式
+        distribution: "gaussian" # 噪声分布类型
+        schedule: "linear"  # 调度策略（"linear"表示在0到最大范围之间线性插值）
+        schedule_steps: 5000 # 线性插值的步数
+    sim_params: # 仿真参数随机化
+      gravity: # 重力随机化
+        range: [0, 0.3] # 随机范围
+        operation: "additive" # 添加方式
+        distribution: "gaussian" # 分布类型
 
-    actor_params:
-      robot:
-        # scale:
+    actor_params: # 参与者（Actor）参数随机化
+      robot: # 机器人参数随机化
+        # scale: # 缩放随机化（被注释掉）
         #   range: [0.999, 1.001]
         #   operation: "scaling"
         #   distribution: "uniform"
-        #   setup_only: True # Property will only be randomized once before simulation is started. See Domain Randomization Documentation for more info.
-        color: True
-        dof_properties:
-          damping:
+        #   setup_only: True # 此属性仅在仿真开始前随机化一次。详见域随机化文档。
+        color: True # 是否随机化颜色
+        dof_properties: # 自由度（关节）属性随机化
+          damping: # 阻尼随机化
+            range: [0.7, 1.3]
+            operation: "scaling" # "scaling"表示乘法缩放
+            distribution: "loguniform" # 对数均匀分布
+          stiffness: # 刚度随机化
             range: [0.7, 1.3]
             operation: "scaling"
             distribution: "loguniform"
-          stiffness:
+          effort: # 最大发力限制随机化
             range: [0.7, 1.3]
             operation: "scaling"
-            distribution: "loguniform"
-          effort:
-            range: [0.7, 1.3]
-            operation: "scaling"
-            distribution: "uniform"
-          friction:
+            distribution: "uniform" # 均匀分布
+          friction: # 关节摩擦力随机化
             range: [0.7, 1.3]
             operation: "scaling"
             distribution: "uniform"
-          armature:
+          armature: # 电枢惯量随机化
             range: [0.7, 1.3]
             operation: "scaling"
             distribution: "uniform"
-          # lower:
+          # lower: # 关节下限随机化（被注释掉）
           #   range: [-5.0, 5.0]
           #   operation: "additive"
           #   distribution: "uniform"
-          # upper:
+          # upper: # 关节上限随机化（被注释掉）
           #   range: [-5.0, 5.0]
           #   operation: "additive"
           #   distribution: "uniform"
 
-        rigid_body_properties:
-          mass:
-            range: [0.7, 1.3] # change when runtime API is available
+        rigid_body_properties: # 刚体属性随机化
+          mass: # 质量随机化
+            range: [0.7, 1.3] # 当运行时API可用时可更改
             operation: "scaling"
             distribution: "uniform"
-            setup_only: True # Property will only be randomized once before simulation is started. See Domain Randomization Documentation for more info.
+            setup_only: True # 仅在初始化时设定一次
 
-        rigid_shape_properties:
-          friction:
-            num_buckets: 100
+        rigid_shape_properties: # 刚体形状属性随机化
+          friction: # 表面摩擦力随机化
+            num_buckets: 100 # 将范围分成100个桶进行采样
             range: [0.7, 1.3]
             operation: "scaling"
             distribution: "uniform"
-          restitution:
+          restitution: # 恢复系数（弹性）随机化
             num_buckets: 100
             range: [0.0, 0.3]
             operation: "additive"
             distribution: "uniform"
-      object:
-        # scale:
+      object: # 物体参数随机化
+        # scale: # 缩放随机化（被注释掉）
         #   # range: [0.7, 1.3]
         #   range: [0.999, 1.001]
         #   operation: "scaling"
         #   distribution: "uniform"
-        #   setup_only: True # Property will only be randomized once before simulation is started. See Domain Randomization Documentation for more info.
-        rigid_body_properties:
-          mass:
-            range: [0.7, 1.3] # after fixing the API expand it even more
+        #   setup_only: True
+        rigid_body_properties: # 物体刚体属性随机化
+          mass: # 物体质量随机化
+            range: [0.7, 1.3] # 修复API后可以进一步扩大范围
             operation: "scaling"
             distribution: "uniform"
-            setup_only: True # Property will only be randomized once before simulation is started. See Domain Randomization Documentation for more info.
-        rigid_shape_properties:
-          friction:
+            setup_only: True
+        rigid_shape_properties: # 物体形状属性随机化
+          friction: # 物体表面摩擦力随机化
             num_buckets: 100
             range: [0.7, 1.3]
             operation: "scaling"
             distribution: "uniform"
-          restitution:
+          restitution: # 物体恢复系数随机化
             num_buckets: 100
             range: [0.0, 0.3]
             operation: "additive"
             distribution: "uniform"
 
-sim:
-  substeps: 2
-  dt: ${eval:"1/60"} # 1/60
-  up_axis: "z"
-  use_gpu_pipeline: ${eq:${...pipeline},"gpu"}
-  num_client_threads: 8
+sim: # 仿真器底层设置
+  substeps: 2 # 每个仿真步包含的物理子步数（增加可提高物理精度，但降低速度）
+  dt: ${eval:"1/60"} # 仿定的时间步长（1/60秒，即60Hz）
+  up_axis: "z" # 向上坐标轴定义为Z轴
+  use_gpu_pipeline: ${eq:${...pipeline},"gpu"} # 是否使用GPU张量管道进行数据传输（大幅提高并行效率）
+  num_client_threads: 8 # 客户端线程数
 
-  gravity: [0.0, 0.0, -9.81]
-  physx:
-    num_threads: 6
-    solver_type: 1  # 0: pgs, 1: tgs
-    num_position_iterations: 8
-    # num_velocity_iterations: 8  # Consider trying with this
-    num_velocity_iterations: 0
-
-    max_gpu_contact_pairs: ${eval:"8*1024*1024"} # 8*1024*1024
-    num_subscenes: ${....num_subscenes}
-    # contact_offset: 0.02  # Consider trying with this
-    contact_offset: 0.002
-    rest_offset: 0.0
-    bounce_threshold_velocity: 0.2
-    max_depenetration_velocity: 1000.0
-    default_buffer_size_multiplier: 25.0
-    contact_collection: 0 # 0: CC_NEVER (don't collect contact info), 1: CC_LAST_SUBSTEP (collect only contacts on last substep), 2: CC_ALL_SUBSTEPS (broken - do not use!)
+  gravity: [0.0, 0.0, -9.81] # 重力向量（Z轴向下9.81 m/s^2）
+  physx: # PhysX 物理引擎的特定设置
+    num_threads: 6 # PhysX 使用的CPU线程数
+    solver_type: 1  # 求解器类型，0: PGS (Projected Gauss-Seidel), 1: TGS (Temporal Gauss-Seidel，更精确但更慢)
+    num_position_iterations: 8 # 位置求解器的迭代次数（越高越精确，特别是对于关节链）
+    # num_velocity_iterations: 8  # 速度求解器的迭代次数（可考虑尝试）
+    num_velocity_iterations: 0 # 当前设置为0
+    
+    max_gpu_contact_pairs: ${eval:"8*1024*1024"} # GPU上允许的最大接触对数量（8*1024*1024）
+    num_subscenes: ${....num_subscenes} # 子场景数量，用于多线程/多GPU划分
+    # contact_offset: 0.02  # 接触偏移量（可考虑尝试）
+    contact_offset: 0.002 # 物理引擎开始计算接触力的距离阈值
+    rest_offset: 0.0 # 两个物体静止时的距离偏移量
+    bounce_threshold_velocity: 0.2 # 触发反弹的最小相对速度阈值
+    max_depenetration_velocity: 1000.0 # 解决穿透时的最大分离速度
+    default_buffer_size_multiplier: 25.0 # 默认内存缓冲区大小的乘数
+    contact_collection: 0 # 接触信息收集模式。0: CC_NEVER (不收集), 1: CC_LAST_SUBSTEP (仅收集最后一个子步的接触), 2: CC_ALL_SUBSTEPS (收集所有子步，已损坏勿用)
