@@ -217,5 +217,8 @@ train_dir/
 runs/
 wandb/
 
+# Local AutoDL driver secrets (never commit)
+scripts/autodl/env.local
+
 # FoundationPose (separate repo)
 FoundationPose/
