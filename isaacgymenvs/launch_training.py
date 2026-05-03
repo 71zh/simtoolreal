@@ -40,7 +40,7 @@ class LaunchTrainingArgs:
     """Number of SAPG blocks."""
 
     # === Wandb ===
-    wandb_entity: str = "tylerlum"
+    wandb_entity: str = "2965729798-centra-university-of-finance-and-economics"
     """Wandb entity (user or team)."""
 
     wandb_project: str = "simtoolreal"
@@ -88,7 +88,8 @@ def launch_training(args: LaunchTrainingArgs) -> None:
         "headless=True",
         f"task.env.numEnvs={args.num_envs}",
         # === Training ===
-        "train.params.config.minibatch_size=98304",
+        f"train.params.config.minibatch_size={args.num_envs * 4}",
+        f"train.params.config.central_value_config.minibatch_size={args.num_envs * 4}",
         "multi_gpu=False",
         "train.params.config.good_reset_boundary=0",
         "task.env.goodResetBoundary=0",

@@ -37,7 +37,7 @@ dependencies = [
     "matplotlib",
     "networkx",
     "pyrender",
-    "wandb==0.12.21",
+    "wandb>=0.17,<0.18",
     "tensorboard",
     "tensorboardx",
     "opencv-python",
